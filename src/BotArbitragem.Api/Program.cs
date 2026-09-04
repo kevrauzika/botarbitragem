@@ -12,6 +12,8 @@ builder.Services.AddHealthChecks();
 builder.Services.Configure<ValueBetPolicy>(builder.Configuration.GetSection("ValueBetPolicy"));
 
 var app = builder.Build();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -33,6 +35,8 @@ app.MapHealthChecks("/health");
 app.MapMatchEndpoints();
 app.MapAnalysisEndpoints();
 app.MapIngestionEndpoints();
+app.MapOpportunityEndpoints();
+app.MapBetEndpoints();
 app.Run();
 
 public partial class Program;

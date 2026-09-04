@@ -1,5 +1,6 @@
 using BotArbitragem.Application.Abstractions;
 using BotArbitragem.Domain.Entities;
+using BotArbitragem.Api.Security;
 
 namespace BotArbitragem.Api.Endpoints;
 
@@ -21,7 +22,7 @@ public static class MatchEndpoints
             var match = new FootballMatch(request.ExternalId, request.Competition, request.HomeTeam, request.AwayTeam, request.KickoffAt);
             await repository.AddAsync(match, ct);
             return Results.Created($"/api/matches/{match.Id}", match);
-        });
+        }).AddEndpointFilter<AdminApiKeyEndpointFilter>();
         group.MapPost("/{id:guid}/odds", async (Guid id, CreateOddsRequest request, IMatchRepository repository, CancellationToken ct) =>
         {
             if (await repository.GetByIdAsync(id, ct) is null) return Results.NotFound();
@@ -30,7 +31,7 @@ public static class MatchEndpoints
             if (!await repository.AddOddsIfNewAsync(quote, ct))
                 return Results.Conflict(new { message = "Cotação já registrada para este instante." });
             return Results.Created($"/api/matches/{id}", quote);
-        });
+        }).AddEndpointFilter<AdminApiKeyEndpointFilter>();
         return app;
     }
 }

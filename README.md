@@ -24,6 +24,14 @@ Swagger: `http://localhost:5000/swagger`
 - `POST /api/analysis/no-vig/1x2`
 - `POST /api/analysis/value-bet`
 - `POST /api/admin/ingestion/{sportKey}` (`X-Admin-Key` obrigatório)
+- `GET /api/opportunities?status=active&kind=arbitrage`
+- `GET /api/opportunities/{id}`
+- `POST /api/admin/opportunities/scan` (`X-Admin-Key` obrigatório)
+- `GET /api/bets`
+- `GET /api/bets/performance`
+- `POST /api/bets` (`X-Admin-Key` obrigatório)
+- `POST /api/bets/{id}/settle` (`X-Admin-Key` obrigatório)
+- `POST /api/bets/{id}/void` (`X-Admin-Key` obrigatório)
 
 O cálculo usa `EV = (probabilidade estimada × odd decimal) - 1`. EV positivo indica apenas valor matemático estimado, não garantia de resultado.
 
@@ -40,3 +48,38 @@ curl -X POST http://localhost:5000/api/admin/ingestion/soccer_brazil_campeonato 
 ```
 
 A importação é idempotente para a mesma partida, casa, mercado, seleção e instante de captura. A chave do provedor nunca deve ser adicionada ao repositório.
+
+## Monitoramento automático
+
+O worker interno pode coletar as ligas configuradas, analisar as odds recentes e persistir dois tipos de oportunidade:
+
+- `value-bet`: usa a mediana das probabilidades sem margem das casas como referência e aplica a política de EV/edge;
+- `arbitrage`: combina a melhor odd de cada resultado, exige retorno teórico mínimo e calcula a porcentagem da stake para cada perna.
+
+Por segurança, a coleta automática começa desabilitada até que a chave do provedor seja configurada. Para ativar:
+
+```bash
+export Automation__IngestionEnabled="true"
+export Automation__ScanEnabled="true"
+export Automation__IntervalSeconds="300"
+```
+
+Somente odds dentro de `OpportunityPolicy:MaximumOddsAgeMinutes` são consideradas. Oportunidades que deixam de aparecer são marcadas como `expired`.
+
+## Alertas pelo Telegram
+
+O envio é opcional e não impede a análise quando estiver desabilitado:
+
+```bash
+export Telegram__Enabled="true"
+export Telegram__BotToken="token-do-bot"
+export Telegram__ChatId="id-do-chat"
+```
+
+Alertas repetidos respeitam `OpportunityPolicy:AlertCooldownMinutes`. Nunca versionar o token real.
+
+## Registro e desempenho
+
+Uma oportunidade pode ser registrada como `paper` (simulação) ou `actual` (apenas acompanhamento de uma aposta feita fora do sistema). O sistema não envia apostas para bookmakers. As odds e stakes de cada perna são congeladas no registro para preservar o histórico.
+
+Depois da partida, informe o retorno efetivamente recebido no endpoint `settle`, ou marque como `void`. O endpoint `GET /api/bets/performance` calcula exposição pendente, resultado e ROI separadamente por moeda.

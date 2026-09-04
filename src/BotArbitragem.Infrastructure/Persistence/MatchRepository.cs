@@ -1,6 +1,7 @@
 using BotArbitragem.Application.Abstractions;
 using BotArbitragem.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace BotArbitragem.Infrastructure.Persistence;
 
@@ -34,7 +35,16 @@ public sealed class MatchRepository(AppDbContext dbContext) : IMatchRepository
         if (exists) return false;
 
         dbContext.OddsQuotes.Add(quote);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return true;
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is PostgresException
+                                                   { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            dbContext.Entry(quote).State = EntityState.Detached;
+            return false;
+        }
     }
 }

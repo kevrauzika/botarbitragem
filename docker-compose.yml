@@ -5,7 +5,7 @@ services:
       POSTGRES_DB: botarbitragem
       POSTGRES_USER: botarbitragem
       POSTGRES_PASSWORD: botarbitragem
-    ports: ["5432:5432"]
+    ports: ["${POSTGRES_PORT:-5433}:5432"]
     volumes: [postgres_data:/var/lib/postgresql/data]
 volumes:
   postgres_data:

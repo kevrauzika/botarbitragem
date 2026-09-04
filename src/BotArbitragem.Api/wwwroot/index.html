@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Odds Analíticas 24/7</title>
+  <style>
+    :root { color-scheme: dark; --bg:#090d13; --panel:#111824; --line:#263346; --muted:#8c9aab; --text:#edf3fa; --green:#42d392; --amber:#f7c65f; --blue:#65a6ff; --red:#ff7272; }
+    * { box-sizing:border-box }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at 80% 0,#15233a 0,transparent 34rem),var(--bg); color:var(--text); font:14px/1.5 Inter,ui-sans-serif,system-ui,sans-serif }
+    header,main { width:min(1180px,calc(100% - 32px)); margin:auto }
+    header { display:flex; align-items:center; justify-content:space-between; padding:28px 0 20px; gap:20px }
+    h1 { font-size:22px; margin:0; letter-spacing:-.03em } h1 span { color:var(--green) }
+    .live { display:flex; align-items:center; gap:8px; color:var(--muted) } .dot { width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green) }
+    .toolbar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px }
+    select,button { border:1px solid var(--line); background:#121b28; color:var(--text); border-radius:9px; padding:9px 12px; font:inherit }
+    button { cursor:pointer } button:hover { border-color:#4a6382 } button.primary { margin-left:auto;background:var(--green);border-color:var(--green);color:#062417;font-weight:700 }
+    .stats { display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px }
+    .stat,.card,.empty { background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:13px }
+    .stat { padding:16px } .stat small { color:var(--muted);display:block;margin-bottom:5px } .stat strong { font-size:25px }
+    .cards { display:grid;gap:12px;padding-bottom:40px }
+    .card { padding:18px;display:grid;grid-template-columns:minmax(250px,1.1fr) minmax(280px,1.5fr) auto;gap:24px;align-items:center }
+    .kind { display:inline-flex;border-radius:99px;padding:3px 8px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:#163b2e;color:var(--green) }
+    .kind.arbitrage { background:#3c3218;color:var(--amber) }
+    .match { font-size:17px;font-weight:750;margin:8px 0 2px }.meta { color:var(--muted);font-size:12px }
+    .legs { display:grid;gap:6px }.leg { display:grid;grid-template-columns:1fr auto auto;gap:12px;padding:7px 9px;background:#0c121b;border-radius:8px }.book,.stake { color:var(--muted) }.odd { color:var(--blue);font-weight:800 }
+    .metric { text-align:right }.metric strong { display:block;font-size:24px;color:var(--green) }.metric small { color:var(--muted) }
+    .metric button { margin-top:10px;font-size:12px }.section-title { font-size:16px;margin:28px 0 12px }.performance { margin-bottom:36px }
+    .empty { padding:54px;text-align:center;color:var(--muted) }.error { color:var(--red) }
+    .skeleton { animation:pulse 1.3s infinite alternate;opacity:.5 } @keyframes pulse { to { opacity:1 } }
+    @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}.card{grid-template-columns:1fr;gap:14px}.metric{text-align:left}button.primary{margin-left:0}header{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Odds Analíticas <span>24/7</span></h1>
+    <div class="live"><i class="dot"></i><span id="updated">Carregando monitor...</span></div>
+  </header>
+  <main>
+    <section class="stats">
+      <div class="stat"><small>Oportunidades</small><strong id="total">—</strong></div>
+      <div class="stat"><small>Arbitragens</small><strong id="arbitrages">—</strong></div>
+      <div class="stat"><small>Value bets</small><strong id="valuebets">—</strong></div>
+      <div class="stat"><small>Melhor retorno</small><strong id="best">—</strong></div>
+    </section>
+    <section class="toolbar">
+      <select id="status"><option value="active">Ativas</option><option value="expired">Expiradas</option><option value="">Todas</option></select>
+      <select id="kind"><option value="">Todos os tipos</option><option value="arbitrage">Arbitragem</option><option value="value-bet">Value bet</option></select>
+      <button id="refresh">Atualizar</button>
+      <button class="primary" id="scan">Executar análise agora</button>
+    </section>
+    <section class="cards" id="cards"><div class="empty skeleton">Buscando oportunidades…</div></section>
+    <h2 class="section-title">Desempenho registrado</h2>
+    <section class="stats performance" id="performance"><div class="stat"><small>Sem registros liquidados</small><strong>—</strong></div></section>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const pct = value => value == null ? '—' : new Intl.NumberFormat('pt-BR',{style:'percent',minimumFractionDigits:2}).format(value);
+    const date = value => new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
+    const escapeHtml = value => String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+    async function load() {
+      $('cards').innerHTML = '<div class="empty skeleton">Buscando oportunidades…</div>';
+      const params = new URLSearchParams();
+      if ($('status').value) params.set('status',$('status').value);
+      if ($('kind').value) params.set('kind',$('kind').value);
+      try {
+        const response = await fetch('/api/opportunities/?' + params);
+        if (!response.ok) throw new Error('API respondeu ' + response.status);
+        const items = await response.json();
+        render(items);
+        $('updated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
+      } catch (error) {
+        $('cards').innerHTML = '<div class="empty error">Não foi possível consultar a API: ' + escapeHtml(error.message) + '</div>';
+        $('updated').textContent = 'Monitor indisponível';
+      }
+    }
+
+    function render(items) {
+      $('total').textContent = items.length;
+      $('arbitrages').textContent = items.filter(x => x.kind === 'arbitrage').length;
+      $('valuebets').textContent = items.filter(x => x.kind === 'value-bet').length;
+      const returns = items.map(x => x.kind === 'arbitrage' ? x.profitPercentage : x.expectedValue).filter(x => x != null);
+      $('best').textContent = returns.length ? pct(Math.max(...returns)) : '—';
+      if (!items.length) {
+        $('cards').innerHTML = '<div class="empty">Nenhuma oportunidade encontrada para estes filtros.</div>';
+        return;
+      }
+      $('cards').innerHTML = items.map(item => {
+        const isArb = item.kind === 'arbitrage';
+        const legs = item.legs.map(leg => `<div class="leg"><span>${escapeHtml(leg.selection)} <span class="book">· ${escapeHtml(leg.bookmaker)}</span></span><span class="odd">${Number(leg.decimalOdds).toFixed(2)}</span><span class="stake">${isArb ? Number(leg.stakePercentage).toFixed(2)+'%' : ''}</span></div>`).join('');
+        return `<article class="card"><div><span class="kind ${isArb?'arbitrage':''}">${isArb?'Arbitragem':'Value bet'}</span><div class="match">${escapeHtml(item.homeTeam)} × ${escapeHtml(item.awayTeam)}</div><div class="meta">${escapeHtml(item.competition)} · ${date(item.kickoffAt)}</div></div><div class="legs">${legs}</div><div class="metric"><strong>${pct(isArb?item.profitPercentage:item.expectedValue)}</strong><small>${isArb?'lucro teórico':'expected value'}${!isArb&&item.edge!=null?' · edge '+pct(item.edge):''}</small><button onclick="paperBet('${item.id}')">Registrar simulação</button></div></article>`;
+      }).join('');
+    }
+
+    async function loadPerformance() {
+      try {
+        const response = await fetch('/api/bets/performance');
+        if (!response.ok) throw new Error();
+        const items = await response.json();
+        $('performance').innerHTML = items.length ? items.map(item => `<div class="stat"><small>${escapeHtml(item.currency)} · ${item.settledRecords} liquidadas · ${item.pendingRecords} pendentes</small><strong>${pct(item.returnOnInvestment)}</strong><small>Resultado: ${Number(item.profitLoss).toFixed(2)} · Exposição: ${Number(item.pendingExposure).toFixed(2)}</small></div>`).join('') : '<div class="stat"><small>Sem registros liquidados</small><strong>—</strong></div>';
+      } catch { $('performance').innerHTML = '<div class="stat"><small>Desempenho indisponível</small><strong>—</strong></div>'; }
+    }
+
+    async function paperBet(opportunityId) {
+      const stake = prompt('Stake total da simulação:', '100');
+      if (!stake || Number(stake.replace(',','.')) <= 0) return;
+      const key = prompt('Chave administrativa:');
+      if (!key) return;
+      const response = await fetch('/api/bets/', {method:'POST',headers:{'Content-Type':'application/json','X-Admin-Key':key},body:JSON.stringify({opportunityId,stake:Number(stake.replace(',','.')),currency:'BRL',mode:'paper',notes:'Dashboard'})});
+      if (!response.ok) { const error = await response.json().catch(()=>({message:'Falha ao registrar.'})); alert(error.message || 'Falha ao registrar.'); return; }
+      alert('Simulação registrada.'); await loadPerformance();
+    }
+
+    async function scan() {
+      const key = prompt('Informe a chave administrativa para executar a análise:');
+      if (!key) return;
+      $('scan').disabled = true;
+      try {
+        const response = await fetch('/api/admin/opportunities/scan',{method:'POST',headers:{'X-Admin-Key':key}});
+        if (!response.ok) throw new Error(response.status === 401 ? 'Chave administrativa inválida.' : 'Falha na análise: '+response.status);
+        await load();
+      } catch (error) { alert(error.message); }
+      finally { $('scan').disabled = false; }
+    }
+
+    $('refresh').addEventListener('click',load); $('scan').addEventListener('click',scan);
+    $('status').addEventListener('change',load); $('kind').addEventListener('change',load);
+    load(); loadPerformance(); setInterval(()=>{load();loadPerformance()},60000);
+  </script>
+</body>
+</html>
