@@ -26,9 +26,15 @@ public sealed class MatchRepository(AppDbContext dbContext) : IMatchRepository
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task AddOddsAsync(OddsQuote quote, CancellationToken cancellationToken)
+    public async Task<bool> AddOddsIfNewAsync(OddsQuote quote, CancellationToken cancellationToken)
     {
+        var exists = await dbContext.OddsQuotes.AnyAsync(x => x.MatchId == quote.MatchId &&
+            x.Bookmaker == quote.Bookmaker && x.Market == quote.Market && x.Selection == quote.Selection &&
+            x.CapturedAt == quote.CapturedAt, cancellationToken);
+        if (exists) return false;
+
         dbContext.OddsQuotes.Add(quote);
         await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 }

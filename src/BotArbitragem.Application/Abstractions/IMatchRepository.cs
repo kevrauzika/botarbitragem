@@ -8,5 +8,5 @@ public interface IMatchRepository
     Task<FootballMatch?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<FootballMatch?> GetByExternalIdAsync(string externalId, CancellationToken cancellationToken);
     Task AddAsync(FootballMatch match, CancellationToken cancellationToken);
-    Task AddOddsAsync(OddsQuote quote, CancellationToken cancellationToken);
+    Task<bool> AddOddsIfNewAsync(OddsQuote quote, CancellationToken cancellationToken);
 }

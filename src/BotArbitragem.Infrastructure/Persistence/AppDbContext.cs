@@ -29,6 +29,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Market).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Selection).HasMaxLength(100).IsRequired();
             entity.Property(x => x.DecimalOdds).HasPrecision(10, 4);
+            entity.HasIndex(x => new { x.MatchId, x.Bookmaker, x.Market, x.Selection, x.CapturedAt }).IsUnique();
             entity.HasOne<FootballMatch>().WithMany(x => x.OddsQuotes).HasForeignKey(x => x.MatchId);
         });
     }

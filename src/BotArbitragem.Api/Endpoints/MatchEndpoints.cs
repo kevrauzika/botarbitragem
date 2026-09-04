@@ -27,7 +27,8 @@ public static class MatchEndpoints
             if (await repository.GetByIdAsync(id, ct) is null) return Results.NotFound();
             if (request.DecimalOdds <= 1m) return Results.ValidationProblem(new Dictionary<string, string[]> { ["decimalOdds"] = ["A odd deve ser maior que 1."] });
             var quote = new OddsQuote(id, request.Bookmaker, request.Market, request.Selection, request.DecimalOdds, DateTimeOffset.UtcNow);
-            await repository.AddOddsAsync(quote, ct);
+            if (!await repository.AddOddsIfNewAsync(quote, ct))
+                return Results.Conflict(new { message = "Cotação já registrada para este instante." });
             return Results.Created($"/api/matches/{id}", quote);
         });
         return app;
