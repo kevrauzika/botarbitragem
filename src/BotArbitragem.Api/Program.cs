@@ -1,4 +1,5 @@
 using BotArbitragem.Api.Endpoints;
+using BotArbitragem.Application.Models;
 using BotArbitragem.Infrastructure;
 using BotArbitragem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+builder.Services.Configure<ValueBetPolicy>(builder.Configuration.GetSection("ValueBetPolicy"));
 
 var app = builder.Build();
 if (app.Environment.IsDevelopment())
