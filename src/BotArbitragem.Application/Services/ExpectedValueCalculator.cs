@@ -14,4 +14,13 @@ public static class ExpectedValueCalculator
 
     public static bool HasPositiveValue(decimal estimatedProbability, decimal decimalOdds) =>
         Calculate(estimatedProbability, decimalOdds) > 0m;
+
+    public static decimal CalculateImpliedProbability(decimal decimalOdds)
+    {
+        if (decimalOdds <= 1m) throw new ArgumentOutOfRangeException(nameof(decimalOdds));
+        return 1m / decimalOdds;
+    }
+
+    public static decimal CalculateEdge(decimal estimatedProbability, decimal decimalOdds) =>
+        estimatedProbability - CalculateImpliedProbability(decimalOdds);
 }
