@@ -41,7 +41,7 @@ public sealed class ApiFootballClient(HttpClient httpClient, IOptions<ApiFootbal
                             "h2h",
                             MapSelection(value.Value, fixture),
                             ParseOdd(value.Odd),
-                            snapshot.Update.ToUniversalTime()))))
+                            snapshot.Update.ToUniversalTime())))))
                 .Where(x => x.DecimalOdds > 1m)
                 .ToList();
             result.Add(new ProviderEvent(fixture.Fixture.Id.ToString(CultureInfo.InvariantCulture), sportKey,
