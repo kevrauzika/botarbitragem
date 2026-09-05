@@ -1,7 +1,6 @@
 using BotArbitragem.Application.Abstractions;
 using BotArbitragem.Application.Exceptions;
 using BotArbitragem.Application.Models;
-using BotArbitragem.Infrastructure.Providers.TheOddsApi;
 using Microsoft.Extensions.Options;
 
 namespace BotArbitragem.Api.Workers;
@@ -9,7 +8,6 @@ namespace BotArbitragem.Api.Workers;
 public sealed class MarketMonitoringWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<MonitoringOptions> monitoringOptions,
-    IOptions<TheOddsApiOptions> providerOptions,
     TimeProvider timeProvider,
     ILogger<MarketMonitoringWorker> logger) : BackgroundService
 {
@@ -48,7 +46,7 @@ public sealed class MarketMonitoringWorker(
         var repository = scope.ServiceProvider.GetRequiredService<IMatchRepository>();
         var publisher = scope.ServiceProvider.GetRequiredService<IOpportunityPublisher>();
 
-        foreach (var sportKey in providerOptions.Value.AllowedSports)
+        foreach (var sportKey in settings.SportKeys)
         {
             try
             {

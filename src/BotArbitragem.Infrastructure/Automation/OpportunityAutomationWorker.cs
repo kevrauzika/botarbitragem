@@ -1,6 +1,5 @@
 using BotArbitragem.Application.Abstractions;
 using BotArbitragem.Application.Models;
-using BotArbitragem.Infrastructure.Providers.TheOddsApi;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -10,7 +9,7 @@ namespace BotArbitragem.Infrastructure.Automation;
 
 public sealed class OpportunityAutomationWorker(IServiceScopeFactory scopeFactory,
     IOptions<AutomationOptions> automationOptions,
-    IOptions<TheOddsApiOptions> providerOptions,
+    IOptions<MonitoringOptions> monitoringOptions,
     ILogger<OpportunityAutomationWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -42,25 +41,18 @@ public sealed class OpportunityAutomationWorker(IServiceScopeFactory scopeFactor
         using var scope = scopeFactory.CreateScope();
         if (settings.IngestionEnabled)
         {
-            if (string.IsNullOrWhiteSpace(providerOptions.Value.ApiKey))
+            var ingestion = scope.ServiceProvider.GetRequiredService<IOddsIngestionService>();
+            foreach (var sport in monitoringOptions.Value.SportKeys)
             {
-                logger.LogWarning("Coleta automática habilitada, mas OddsProvider:ApiKey não foi configurada.");
-            }
-            else
-            {
-                var ingestion = scope.ServiceProvider.GetRequiredService<IOddsIngestionService>();
-                foreach (var sport in providerOptions.Value.AllowedSports)
+                try
                 {
-                    try
-                    {
-                        var result = await ingestion.ImportAsync(sport, cancellationToken);
-                        logger.LogInformation("Coleta {Sport}: {Events} eventos e {Odds} odds novas.", sport,
-                            result.EventsReceived, result.OddsCreated);
-                    }
-                    catch (Exception exception)
-                    {
-                        logger.LogError(exception, "Falha ao coletar a liga {Sport}.", sport);
-                    }
+                    var result = await ingestion.ImportAsync(sport, cancellationToken);
+                    logger.LogInformation("Coleta {Sport}: {Events} eventos e {Odds} odds novas.", sport,
+                        result.EventsReceived, result.OddsCreated);
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(exception, "Falha ao coletar a liga {Sport}.", sport);
                 }
             }
         }

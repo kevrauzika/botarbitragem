@@ -7,6 +7,8 @@ using BotArbitragem.Infrastructure.Notifications;
 using BotArbitragem.Infrastructure.Persistence;
 using BotArbitragem.Infrastructure.Notifications.Telegram;
 using BotArbitragem.Infrastructure.Providers.TheOddsApi;
+using BotArbitragem.Infrastructure.Providers.GanheMaisBet;
+using BotArbitragem.Infrastructure.Providers.ApiFootball;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,9 +35,33 @@ public static class DependencyInjection
         services.AddScoped<IOddsIngestionService, OddsIngestionService>();
         services.AddScoped<IOpportunityScanService, OpportunityScanService>();
         services.Configure<TheOddsApiOptions>(configuration.GetSection(TheOddsApiOptions.SectionName));
+        services.Configure<GanheMaisBetOptions>(configuration.GetSection(GanheMaisBetOptions.SectionName));
+        services.Configure<ApiFootballOptions>(configuration.GetSection(ApiFootballOptions.SectionName));
         services.Configure<OpportunityPolicy>(configuration.GetSection("OpportunityPolicy"));
         services.Configure<AutomationOptions>(configuration.GetSection("Automation"));
-        services.AddHttpClient<IOddsProvider, TheOddsApiClient>((serviceProvider, client) =>
+        if (!string.IsNullOrWhiteSpace(configuration["ApiFootball:ApiKey"]))
+        {
+            services.AddHttpClient<IOddsProvider, ApiFootballClient>((serviceProvider, client) =>
+                {
+                    var provider = serviceProvider.GetRequiredService<IOptions<ApiFootballOptions>>().Value;
+                    client.BaseAddress = new Uri(provider.BaseUrl);
+                    client.Timeout = TimeSpan.FromSeconds(30);
+                })
+                .RemoveAllLoggers();
+        }
+        else if (!string.IsNullOrWhiteSpace(configuration["GanheMaisBet:ApiKey"]))
+        {
+            services.AddHttpClient<IOddsProvider, GanheMaisBetClient>((serviceProvider, client) =>
+                {
+                    var provider = serviceProvider.GetRequiredService<IOptions<GanheMaisBetOptions>>().Value;
+                    client.BaseAddress = new Uri(provider.BaseUrl);
+                    client.Timeout = TimeSpan.FromSeconds(30);
+                })
+                .RemoveAllLoggers();
+        }
+        else
+        {
+            services.AddHttpClient<IOddsProvider, TheOddsApiClient>((serviceProvider, client) =>
             {
                 var options = serviceProvider.GetRequiredService<IOptions<TheOddsApiOptions>>().Value;
                 client.BaseAddress = new Uri(options.BaseUrl);
@@ -43,6 +69,7 @@ public static class DependencyInjection
             })
             // O provedor exige a chave na query string. Desabilitar o logger HTTP impede vazamento da URL.
             .RemoveAllLoggers();
+        }
         services.Configure<PublicationTelegramOptions>(configuration.GetSection(PublicationTelegramOptions.SectionName));
         services.Configure<ScanTelegramOptions>(configuration.GetSection(ScanTelegramOptions.SectionName));
         services.AddHttpClient<IGroupNotifier, TelegramGroupNotifier>(client =>
