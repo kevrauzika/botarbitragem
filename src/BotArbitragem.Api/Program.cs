@@ -60,6 +60,7 @@ builder.Services.AddScoped<IOpportunityPublisher>(serviceProvider => new Opportu
     serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpportunityAnalysisPolicy>>().Value,
     serviceProvider.GetRequiredService<TimeProvider>()));
 builder.Services.AddHostedService<MarketMonitoringWorker>();
+builder.Services.AddHostedService<AudienceEngagementWorker>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
