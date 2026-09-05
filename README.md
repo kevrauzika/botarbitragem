@@ -16,26 +16,23 @@ Swagger: `http://localhost:5000/swagger`
 ## Endpoints disponíveis
 
 - `GET /health`
-- `GET /api/matches`
-- `GET /api/matches/{id}`
+- `GET /api/matches?page=1&pageSize=50` (`pageSize` máximo de 100)
+- `GET /api/matches/{id}?oddsLimit=200` (`oddsLimit` máximo de 1000)
 - `POST /api/matches`
 - `POST /api/matches/{id}/odds`
 - `POST /api/analysis/expected-value`
 - `POST /api/analysis/no-vig/1x2`
 - `POST /api/analysis/value-bet`
+- `GET /api/analysis/matches/{id}/value-bets`
 - `POST /api/admin/ingestion/{sportKey}` (`X-Admin-Key` obrigatório)
-- `GET /api/opportunities?status=active&kind=arbitrage`
-- `GET /api/opportunities/{id}`
-- `POST /api/admin/opportunities/scan` (`X-Admin-Key` obrigatório)
-- `GET /api/bets`
-- `GET /api/bets/performance`
-- `POST /api/bets` (`X-Admin-Key` obrigatório)
-- `POST /api/bets/{id}/settle` (`X-Admin-Key` obrigatório)
-- `POST /api/bets/{id}/void` (`X-Admin-Key` obrigatório)
+- `POST /api/admin/publication/matches/{id}` (`X-Admin-Key` obrigatório)
+- `POST /api/admin/telegram/test` (`X-Admin-Key` obrigatório)
 
 O cálculo usa `EV = (probabilidade estimada × odd decimal) - 1`. EV positivo indica apenas valor matemático estimado, não garantia de resultado.
 
 Uma oportunidade somente recebe `isQualified: true` quando passa por todos os filtros configuráveis de EV mínimo, edge mínimo, probabilidade e faixa de odds. Se nenhuma oportunidade passar, nenhuma pick deve ser publicada.
+
+O endpoint de análise por partida calcula uma probabilidade justa de consenso usando as cotações 1X2 sem margem das outras casas. Por padrão, exige duas casas independentes como referência, ignora mercados incompletos e descarta cotações com mais de 30 minutos. A casa avaliada nunca participa do próprio consenso.
 
 ## Coleta real de odds
 
@@ -49,37 +46,32 @@ curl -X POST http://localhost:5000/api/admin/ingestion/soccer_brazil_campeonato 
 
 A importação é idempotente para a mesma partida, casa, mercado, seleção e instante de captura. A chave do provedor nunca deve ser adicionada ao repositório.
 
-## Monitoramento automático
+## Alertas no Telegram
 
-O worker interno pode coletar as ligas configuradas, analisar as odds recentes e persistir dois tipos de oportunidade:
+Adicione o bot ao grupo e configure `Telegram__BotToken` e `Telegram__ChatId` por variáveis de ambiente. Se o grupo usa tópicos, configure também `Telegram__MessageThreadId`. Com `Monitoring__Enabled=true`, a API coleta as ligas permitidas, analisa partidas futuras e envia somente oportunidades ainda não publicadas. O monitoramento fica desativado por padrão e os tokens nunca são registrados nos logs HTTP.
 
-- `value-bet`: usa a mediana das probabilidades sem margem das casas como referência e aplica a política de EV/edge;
-- `arbitrage`: combina a melhor odd de cada resultado, exige retorno teórico mínimo e calcula a porcentagem da stake para cada perna.
-
-Por segurança, a coleta automática começa desabilitada até que a chave do provedor seja configurada. Para ativar:
+Para validar a conexão antes de ativar o monitoramento:
 
 ```bash
-export Automation__IngestionEnabled="true"
-export Automation__ScanEnabled="true"
-export Automation__IntervalSeconds="300"
+curl -X POST http://localhost:5000/api/admin/telegram/test -H "X-Admin-Key: um-segredo-longo"
 ```
 
-Somente odds dentro de `OpportunityPolicy:MaximumOddsAgeMinutes` são consideradas. Oportunidades que deixam de aparecer são marcadas como `expired`.
+## Deploy em producao
 
-## Alertas pelo Telegram
+O `Dockerfile` da raiz publica a API em .NET 8 na porta `8080`. Provedores que injetam a variavel `PORT` tambem sao suportados automaticamente.
 
-O envio é opcional e não impede a análise quando estiver desabilitado:
+Configure os seguintes segredos no provedor:
 
-```bash
-export Telegram__Enabled="true"
-export Telegram__BotToken="token-do-bot"
-export Telegram__ChatId="id-do-chat"
+```text
+ConnectionStrings__Postgres=<conexao PostgreSQL do provedor>
+Administration__ApiKey=<segredo longo e aleatorio>
+OddsProvider__ApiKey=<chave da The Odds API>
+Telegram__Enabled=true
+Telegram__BotToken=<token do bot>
+Telegram__ChatId=<id do grupo>
+Automation__IngestionEnabled=true
+Automation__ScanEnabled=true
+Monitoring__Enabled=true
 ```
 
-Alertas repetidos respeitam `OpportunityPolicy:AlertCooldownMinutes`. Nunca versionar o token real.
-
-## Registro e desempenho
-
-Uma oportunidade pode ser registrada como `paper` (simulação) ou `actual` (apenas acompanhamento de uma aposta feita fora do sistema). O sistema não envia apostas para bookmakers. As odds e stakes de cada perna são congeladas no registro para preservar o histórico.
-
-Depois da partida, informe o retorno efetivamente recebido no endpoint `settle`, ou marque como `void`. O endpoint `GET /api/bets/performance` calcula exposição pendente, resultado e ROI separadamente por moeda.
+Use `/health` como health check. As migrations sao aplicadas automaticamente ao iniciar a API.

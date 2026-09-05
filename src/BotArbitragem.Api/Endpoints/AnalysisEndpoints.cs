@@ -1,3 +1,4 @@
+using BotArbitragem.Application.Abstractions;
 using BotArbitragem.Application.Contracts;
 using BotArbitragem.Application.Services;
 using BotArbitragem.Application.Models;
@@ -32,6 +33,30 @@ public static class AnalysisEndpoints
             if (request.EstimatedProbability is < 0m or > 1m || request.MarketOdds <= 1m)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["analysis"] = ["Probabilidade deve estar entre 0 e 1 e a odd deve ser maior que 1."] });
             return Results.Ok(ValueBetEvaluator.Evaluate(request.EstimatedProbability, request.MarketOdds, policy.Value));
+        }).WithTags("Analysis");
+
+        app.MapGet("/api/analysis/matches/{id:guid}/value-bets", async (
+            Guid id,
+            IMatchRepository repository,
+            IOptions<ValueBetPolicy> valueBetPolicy,
+            IOptions<OpportunityAnalysisPolicy> analysisPolicy,
+            TimeProvider timeProvider,
+            CancellationToken ct) =>
+        {
+            var analyzedAt = timeProvider.GetUtcNow();
+            var match = await repository.GetByIdWithOddsAsync(
+                id,
+                analyzedAt.AddMinutes(-analysisPolicy.Value.MaximumQuoteAgeMinutes),
+                analyzedAt.AddMinutes(analysisPolicy.Value.MaximumFutureSkewMinutes),
+                ct);
+            if (match is null) return Results.NotFound();
+
+            var result = ValueOpportunityAnalyzer.Analyze(
+                match,
+                valueBetPolicy.Value,
+                analysisPolicy.Value,
+                analyzedAt);
+            return Results.Ok(result);
         }).WithTags("Analysis");
         return app;
     }

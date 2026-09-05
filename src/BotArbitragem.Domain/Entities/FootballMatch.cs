@@ -7,10 +7,12 @@ public sealed class FootballMatch
     public FootballMatch(string externalId, string competition, string homeTeam, string awayTeam, DateTimeOffset kickoffAt)
     {
         Id = Guid.NewGuid();
-        ExternalId = externalId;
-        Competition = competition;
-        HomeTeam = homeTeam;
-        AwayTeam = awayTeam;
+        ExternalId = Guard.RequiredText(externalId, 100, nameof(externalId));
+        Competition = Guard.RequiredText(competition, 150, nameof(competition));
+        HomeTeam = Guard.RequiredText(homeTeam, 150, nameof(homeTeam));
+        AwayTeam = Guard.RequiredText(awayTeam, 150, nameof(awayTeam));
+        if (string.Equals(HomeTeam, AwayTeam, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Os times mandante e visitante devem ser diferentes.", nameof(awayTeam));
         KickoffAt = kickoffAt;
     }
 

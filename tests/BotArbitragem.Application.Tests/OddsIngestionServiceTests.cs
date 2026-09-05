@@ -39,16 +39,22 @@ public sealed class OddsIngestionServiceTests
         private readonly List<FootballMatch> _matches = [];
         private readonly HashSet<string> _odds = [];
 
-        public Task<IReadOnlyList<FootballMatch>> ListAsync(DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<FootballMatch>>(_matches);
+        public Task<PagedResult<FootballMatch>> ListAsync(DateTimeOffset? from, DateTimeOffset? to, int page, int pageSize, CancellationToken cancellationToken) =>
+            Task.FromResult(new PagedResult<FootballMatch>(_matches, page, pageSize, _matches.Count));
         public Task<FootballMatch?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(_matches.FirstOrDefault(x => x.Id == id));
+        public Task<FootballMatch?> GetByIdWithLatestOddsAsync(Guid id, int oddsLimit, CancellationToken cancellationToken) =>
+            GetByIdAsync(id, cancellationToken);
+        public Task<FootballMatch?> GetByIdWithOddsAsync(Guid id, DateTimeOffset oddsFrom, DateTimeOffset oddsTo, CancellationToken cancellationToken) =>
+            GetByIdAsync(id, cancellationToken);
         public Task<FootballMatch?> GetByExternalIdAsync(string externalId, CancellationToken cancellationToken) =>
             Task.FromResult(_matches.FirstOrDefault(x => x.ExternalId == externalId));
-        public Task AddAsync(FootballMatch match, CancellationToken cancellationToken)
+        public Task<(FootballMatch Match, bool Created)> GetOrAddAsync(FootballMatch match, CancellationToken cancellationToken)
         {
+            var existing = _matches.FirstOrDefault(x => x.ExternalId == match.ExternalId);
+            if (existing is not null) return Task.FromResult((existing, false));
             _matches.Add(match);
-            return Task.CompletedTask;
+            return Task.FromResult((match, true));
         }
         public Task<bool> AddOddsIfNewAsync(OddsQuote quote, CancellationToken cancellationToken)
         {

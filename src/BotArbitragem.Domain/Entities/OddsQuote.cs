@@ -6,14 +6,16 @@ public sealed class OddsQuote
 
     public OddsQuote(Guid matchId, string bookmaker, string market, string selection, decimal decimalOdds, DateTimeOffset capturedAt)
     {
+        if (matchId == Guid.Empty)
+            throw new ArgumentException("A partida é obrigatória.", nameof(matchId));
         if (decimalOdds <= 1m)
             throw new ArgumentOutOfRangeException(nameof(decimalOdds), "A odd decimal deve ser maior que 1.");
 
         Id = Guid.NewGuid();
         MatchId = matchId;
-        Bookmaker = bookmaker;
-        Market = market;
-        Selection = selection;
+        Bookmaker = Guard.RequiredText(bookmaker, 100, nameof(bookmaker));
+        Market = Guard.RequiredText(market, 100, nameof(market));
+        Selection = Guard.RequiredText(selection, 100, nameof(selection));
         DecimalOdds = decimalOdds;
         CapturedAt = capturedAt;
     }

@@ -17,13 +17,9 @@ public sealed class OddsIngestionService(IOddsProvider provider, IMatchRepositor
 
         foreach (var item in events)
         {
-            var match = await repository.GetByExternalIdAsync(item.ExternalId, cancellationToken);
-            if (match is null)
-            {
-                match = new FootballMatch(item.ExternalId, item.Competition, item.HomeTeam, item.AwayTeam, item.KickoffAt);
-                await repository.AddAsync(match, cancellationToken);
-                matchesCreated++;
-            }
+            var candidate = new FootballMatch(item.ExternalId, item.Competition, item.HomeTeam, item.AwayTeam, item.KickoffAt);
+            var (match, created) = await repository.GetOrAddAsync(candidate, cancellationToken);
+            if (created) matchesCreated++;
 
             foreach (var quote in item.Odds.Where(x => x.DecimalOdds > 1m))
             {

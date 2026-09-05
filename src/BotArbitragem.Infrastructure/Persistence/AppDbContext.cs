@@ -11,6 +11,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<OpportunityLeg> OpportunityLegs => Set<OpportunityLeg>();
     public DbSet<BetRecord> BetRecords => Set<BetRecord>();
     public DbSet<BetLeg> BetLegs => Set<BetLeg>();
+    public DbSet<PublishedAlert> PublishedAlerts => Set<PublishedAlert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -19,6 +20,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.ToTable("matches");
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.ExternalId).IsUnique();
+            entity.HasIndex(x => x.KickoffAt);
             entity.Property(x => x.ExternalId).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Competition).HasMaxLength(150).IsRequired();
             entity.Property(x => x.HomeTeam).HasMaxLength(150).IsRequired();
@@ -33,6 +35,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Market).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Selection).HasMaxLength(100).IsRequired();
             entity.Property(x => x.DecimalOdds).HasPrecision(10, 4);
+            entity.HasIndex(x => new { x.MatchId, x.CapturedAt });
             entity.HasIndex(x => new { x.MatchId, x.Bookmaker, x.Market, x.Selection, x.CapturedAt }).IsUnique();
             entity.HasOne<FootballMatch>().WithMany(x => x.OddsQuotes).HasForeignKey(x => x.MatchId);
         });
@@ -53,10 +56,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.ExpectedValue).HasPrecision(12, 8);
             entity.Property(x => x.Edge).HasPrecision(12, 8);
             entity.Property(x => x.ProfitPercentage).HasPrecision(12, 8);
-            entity.HasOne<FootballMatch>().WithMany().HasForeignKey(x => x.MatchId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(x => x.Legs).WithOne().HasForeignKey(x => x.OpportunityId)
-                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<FootballMatch>().WithMany().HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.Legs).WithOne().HasForeignKey(x => x.OpportunityId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<OpportunityLeg>(entity =>
@@ -82,12 +83,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.ReturnAmount).HasPrecision(14, 2);
             entity.Property(x => x.ProfitLoss).HasPrecision(14, 2);
             entity.Property(x => x.Notes).HasMaxLength(1000);
-            entity.HasOne<Opportunity>().WithMany().HasForeignKey(x => x.OpportunityId)
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne<FootballMatch>().WithMany().HasForeignKey(x => x.MatchId)
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasMany(x => x.Legs).WithOne().HasForeignKey(x => x.BetRecordId)
-                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Opportunity>().WithMany().HasForeignKey(x => x.OpportunityId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<FootballMatch>().WithMany().HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(x => x.Legs).WithOne().HasForeignKey(x => x.BetRecordId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<BetLeg>(entity =>
@@ -98,6 +96,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Selection).HasMaxLength(150).IsRequired();
             entity.Property(x => x.DecimalOdds).HasPrecision(10, 4);
             entity.Property(x => x.StakeAmount).HasPrecision(14, 2);
+        });
+
+        modelBuilder.Entity<PublishedAlert>(entity =>
+        {
+            entity.ToTable("published_alerts");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.Fingerprint).IsUnique();
+            entity.HasIndex(x => new { x.MatchId, x.CreatedAt });
+            entity.Property(x => x.Fingerprint).HasMaxLength(64).IsRequired();
+            entity.HasOne<FootballMatch>().WithMany().HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

@@ -17,7 +17,7 @@ public sealed class OpportunityScanService(
     {
         var now = DateTimeOffset.UtcNow;
         var policy = opportunityPolicy.Value;
-        var matches = await matchRepository.ListAsync(now, now.AddHours(policy.LookAheadHours), cancellationToken);
+        var matches = await LoadMatchesAsync(now, now.AddHours(policy.LookAheadHours), cancellationToken);
         var candidates = matches.SelectMany(match => FindCandidates(match, now, policy)).ToList();
         var activeFingerprints = candidates.Select(x => x.Fingerprint).ToHashSet(StringComparer.Ordinal);
         var created = 0;
@@ -41,6 +41,21 @@ public sealed class OpportunityScanService(
 
         var expired = await opportunityRepository.ExpireNotSeenAsync(activeFingerprints, now, cancellationToken);
         return new OpportunityScanResult(matches.Count, candidates.Count, created, refreshed, expired, notifications);
+    }
+
+    private async Task<List<FootballMatch>> LoadMatchesAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken)
+    {
+        const int pageSize = 100;
+        var matches = new List<FootballMatch>();
+        for (var page = 1; ; page++)
+        {
+            var result = await matchRepository.ListAsync(from, to, page, pageSize, cancellationToken);
+            matches.AddRange(result.Items);
+            if (page >= result.TotalPages) return matches;
+        }
     }
 
     private IEnumerable<OpportunityCandidate> FindCandidates(FootballMatch match, DateTimeOffset now,

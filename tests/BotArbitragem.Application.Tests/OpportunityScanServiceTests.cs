@@ -80,13 +80,19 @@ public sealed class OpportunityScanServiceTests
 
     private sealed class FakeMatchRepository(FootballMatch match) : IMatchRepository
     {
-        public Task<IReadOnlyList<FootballMatch>> ListAsync(DateTimeOffset? from, DateTimeOffset? to,
-            CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<FootballMatch>>([match]);
+        public Task<PagedResult<FootballMatch>> ListAsync(DateTimeOffset? from, DateTimeOffset? to,
+            int page, int pageSize, CancellationToken cancellationToken) =>
+            Task.FromResult(new PagedResult<FootballMatch>(page == 1 ? [match] : [], page, pageSize, 1));
         public Task<FootballMatch?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<FootballMatch?>(match);
+        public Task<FootballMatch?> GetByIdWithLatestOddsAsync(Guid id, int oddsLimit,
+            CancellationToken cancellationToken) => Task.FromResult<FootballMatch?>(match);
+        public Task<FootballMatch?> GetByIdWithOddsAsync(Guid id, DateTimeOffset oddsFrom, DateTimeOffset oddsTo,
+            CancellationToken cancellationToken) => Task.FromResult<FootballMatch?>(match);
         public Task<FootballMatch?> GetByExternalIdAsync(string externalId, CancellationToken cancellationToken) =>
             Task.FromResult<FootballMatch?>(match);
-        public Task AddAsync(FootballMatch value, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<(FootballMatch Match, bool Created)> GetOrAddAsync(FootballMatch value,
+            CancellationToken cancellationToken) => Task.FromResult((value, true));
         public Task<bool> AddOddsIfNewAsync(OddsQuote quote, CancellationToken cancellationToken) =>
             Task.FromResult(true);
     }

@@ -1,7 +1,9 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using BotArbitragem.Application.Abstractions;
 using BotArbitragem.Application.Contracts;
+using BotArbitragem.Application.Exceptions;
 using Microsoft.Extensions.Options;
 
 namespace BotArbitragem.Infrastructure.Providers.TheOddsApi;
@@ -19,9 +21,33 @@ public sealed class TheOddsApiClient(HttpClient httpClient, IOptions<TheOddsApiO
         var path = $"/v4/sports/{Uri.EscapeDataString(sportKey)}/odds/" +
             $"?apiKey={Uri.EscapeDataString(settings.ApiKey)}&regions={Uri.EscapeDataString(settings.Regions)}" +
             $"&markets={Uri.EscapeDataString(settings.Markets)}&oddsFormat=decimal&dateFormat=iso";
-        var response = await httpClient.GetFromJsonAsync<List<ApiEvent>>(path, cancellationToken) ?? [];
+        List<ApiEvent> events;
+        try
+        {
+            using var response = await httpClient.GetAsync(path, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                throw new OddsProviderException($"O provedor de odds respondeu com status {(int)response.StatusCode}.");
 
-        return response.Select(item => new ProviderEvent(item.Id, item.SportKey, item.SportTitle,
+            events = await response.Content.ReadFromJsonAsync<List<ApiEvent>>(cancellationToken: cancellationToken) ?? [];
+        }
+        catch (OddsProviderException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new OddsProviderException("O provedor de odds excedeu o tempo limite de resposta.");
+        }
+        catch (HttpRequestException)
+        {
+            throw new OddsProviderException("Não foi possível conectar ao provedor de odds.");
+        }
+        catch (JsonException)
+        {
+            throw new OddsProviderException("O provedor de odds retornou uma resposta inválida.");
+        }
+
+        return events.Select(item => new ProviderEvent(item.Id, item.SportKey, item.SportTitle,
             item.HomeTeam, item.AwayTeam, item.CommenceTime,
             item.Bookmakers.SelectMany(bookmaker => bookmaker.Markets.SelectMany(market => market.Outcomes.Select(outcome =>
                 new ProviderOddsQuote(bookmaker.Title, market.Key, outcome.Name, outcome.Price, bookmaker.LastUpdate)))).ToList())).ToList();
