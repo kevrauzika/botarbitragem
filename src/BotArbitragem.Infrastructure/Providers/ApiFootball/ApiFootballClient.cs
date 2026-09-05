@@ -41,12 +41,12 @@ public sealed class ApiFootballClient(HttpClient httpClient, IOptions<ApiFootbal
                             "h2h",
                             MapSelection(value.Value, fixture),
                             ParseOdd(value.Odd),
-                            snapshot.Update)))))
+                            snapshot.Update.ToUniversalTime()))))
                 .Where(x => x.DecimalOdds > 1m)
                 .ToList();
             result.Add(new ProviderEvent(fixture.Fixture.Id.ToString(CultureInfo.InvariantCulture), sportKey,
                 fixture.League.Name, fixture.Teams.Home.Name, fixture.Teams.Away.Name,
-                fixture.Fixture.Date, quotes));
+                fixture.Fixture.Date.ToUniversalTime(), quotes));
         }
 
         return result;
